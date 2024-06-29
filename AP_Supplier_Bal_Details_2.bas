@@ -1,7 +1,7 @@
 Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 'Written by King
-'Created on 11/5/2024
-'Updated on 11/5/2024 8.52 pm
+'Created on 30/06/2024
+'Updated on 30/06/2024 12.26 am
 '
 'FUNCTIONS:
 '1) Add total row for each company
@@ -26,9 +26,12 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 ' - Total and Grand Total changed to formulas and not tabulated figure (e.g. rng.Formula = "=SUM(A1:A200)")
 ' - Solved issue if company/supplier is the last company/supplier, unable to find and determine the last row of the company/supplier
 '       -> Issue is resolved by referencing the timestamp row (which is usually the final row of the worksheet) and subtracting 3 from it to obtain the last company/supplier's last row.
+' - Multilevel custom sorting for AP Ageing sheet and advance cell block level sorting for datasheet
+' - Minor formatting changes (double bottom borders, red color for negative values, cleared contents for company's first row)
 
 Option Explicit
 
+Private ap_ageing_ws_name As String
 Private Enum supplierDetailsCols
     COL_COMPANY = 6
     COL_CURRENCY = 9
@@ -61,6 +64,7 @@ Sub Get_AP_Supplier_Bal_Details_2_MAIN()
     
     Set wb = ActiveWorkbook
     Set ws = wb.Sheets(1)
+    ap_ageing_ws_name = "AP AGEING"
     
     sortOrderCurrency(0) = "USD"
     sortOrderCurrency(1) = "AUD"
@@ -194,15 +198,6 @@ Sub sortCurrency(wb As Workbook, ws As Worksheet)
     ws.Range(ws.Cells(ROW_START, COL_START), ws.Cells(UBound(supplierDetailsArr_new, 2) + 1, 10)).Font.Name = "Arial"
     ws.Range(ws.Cells(ROW_START, COL_START), ws.Cells(UBound(supplierDetailsArr_new, 2) + 1, 10)).Columns(1).Font.Bold = True
     ws.Range(ws.Cells(ROW_START, COL_START), ws.Cells(UBound(supplierDetailsArr_new, 2) + 1, 10)).Columns(2).HorizontalAlignment = xlLeft
-    
-    For i = 1 To ws.UsedRange.Rows.Count
-        On Error GoTo 0
-        If Left(ws.Cells(i, COL_COMPANY), Len("Total for")) = "Total for" Then
-            ws.Cells(i, COL_FOB).Font.Bold = True
-            ws.Cells(i, COL_FOB).Borders(xlEdgeBottom).LineStyle = xlDouble
-            ws.Cells(i, COL_FOB).Borders(xlEdgeBottom).Weight = xlThick
-        End If
-    Next i
 End Sub
 
 Sub calGrandTotal(wb As Workbook, ws As Worksheet)
@@ -240,16 +235,16 @@ Sub calGrandTotal(wb As Workbook, ws As Worksheet)
 End Sub
 
 Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
-    Dim wsApAgeing As Worksheet
+    Dim wsApageing As Worksheet
     Dim i As Long, j As Long
     
-    Set wsApAgeing = Sheets.Add(After:=ws)
+    Set wsApageing = Sheets.Add(After:=ws)
     On Error Resume Next
-    wsApAgeing.Name = "AP AGEING"
+    wsApageing.Name = ap_ageing_ws_name
     On Error GoTo 0
     
     'Headers for wsApAgeing
-    With wsApAgeing
+    With wsApageing
         .Range("A1") = "Supplier"
         .Range("B1") = "Currency"
         .Range("C1") = "Total"
@@ -258,58 +253,89 @@ Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
     j = 2
     For i = ROW_START To ws.UsedRange.Rows.Count - 1
         If Left(ws.Cells(i, COL_COMPANY), Len("Total for")) = "Total for" Then
-            wsApAgeing.Cells(j, 1) = Right(ws.Cells(i, COL_COMPANY), Len(ws.Cells(i, COL_COMPANY)) - Len("Total for "))
-            wsApAgeing.Cells(j, 2) = ws.Cells(i, COL_CURRENCY).Offset(-1, 0)
-            wsApAgeing.Cells(j, 3).Formula = "='" & ws.Name & "'!" & ws.Cells(i, COL_FOB).Address
+            wsApageing.Cells(j, 1) = Right(ws.Cells(i, COL_COMPANY), Len(ws.Cells(i, COL_COMPANY)) - Len("Total for "))
+            wsApageing.Cells(j, 2) = ws.Cells(i, COL_CURRENCY).Offset(-1, 0)
+            wsApageing.Cells(j, 3).Formula = "='" & ws.Name & "'!" & ws.Cells(i, COL_FOB).Address
             j = j + 1
         End If
     Next i
     
     'Multi sorting - sorting by currency then by supplier name
-    Call multiSort(wsApAgeing)
+    Call multiSort(wsApageing)
     
     'Output Grand Total for AP AGEING Sheet
-    With wsApAgeing
+    With wsApageing
         .Range("E1") = "Grand Total"
         .Range(.Cells(2, 5), .Cells(UBound(grandTotalArr) + 1, 6)) = grandTotalArr
     End With
     
     'Formating
-    wsApAgeing.Columns("A:C").EntireColumn.AutoFit
-    wsApAgeing.Columns("C:C").EntireColumn.NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
-    wsApAgeing.Columns("F:F").EntireColumn.NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
-    wsApAgeing.Rows(1).Font.Bold = True
+    wsApageing.Columns("A:C").EntireColumn.AutoFit
+    wsApageing.Columns("C:C").EntireColumn.NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
+    wsApageing.Columns("F:F").EntireColumn.NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
+    wsApageing.Rows(1).Font.Bold = True
 End Sub
 
 Sub formatDataSheet(wb As Workbook, ws As Worksheet)
-    Dim i As Long
+    Dim i As Long, j As Long, k As Long
+    Dim wsApageing As Worksheet
+    Dim company_arr As Variant
+    Dim data As Variant
+    Dim output_row_start As Long, output_row As Long
+    Dim company_lbound As Long, company_ubound As Long
     
     'Delete index and Doc No (1st and 2nd columns) and "Type"
     ws.Columns("D:D").Delete
     ws.Columns("A:B").Delete
     
+    'Sort datasheet based on order on AP ageging sheet
+    Set wsApageing = wb.Sheets(ap_ageing_ws_name)
+    data = ws.UsedRange.Value
+    company_arr = ws.Range("C1:C" & ws.UsedRange.Rows.Count).Value
+    output_row_start = 2
+    'First loop through company names then get upper and lower bound of company block of data
+    For i = 2 To wsApageing.UsedRange.Rows.Count
+        company_lbound = Application.Match(wsApageing.Cells(i, 1), company_arr, False)
+        company_ubound = Application.Match("Total for " & wsApageing.Cells(i, 1), company_arr, False) + 1  'Lower bound will add 1 for an extra row before the next company
+        output_row = output_row_start
+        For j = company_lbound To company_ubound  'TODO: need to optimze nested for loop
+            For k = 1 To 7
+                ws.Cells(output_row, k).Value = data(j, k)
+            Next k
+            output_row = output_row + 1
+        Next j
+        output_row_start = output_row_start + company_ubound - company_lbound
+    Next i
+    
     'Bold Company name
     ws.Columns(3).Font.Bold = True
-    
-    'Delete every company's first row as it is repeated and not required
-    For i = ROW_START To ws.UsedRange.Rows.Count
-        If ws.Cells(i, 3) <> vbNullString And LCase(Left(ws.Cells(i, 3), 9)) <> "total for" Then
-            ws.Cells(i, 3).EntireRow.Delete
-            i = i - 1  'Minus 1 as a row has been deleted, row pointer should not increment
-        End If
-    Next i
     
     'Change data type of "Original Amount" & "Balance Due" to currency
     ws.Columns(5).Style = "Currency"
     ws.Columns(7).Style = "Currency"
     
-    'Format negative values to RED
     For i = ROW_START To ws.UsedRange.Rows.Count
+        'Clear total amount for company's first row as it is repeated and not required
+        If ws.Cells(i, 3) <> vbNullString And LCase(Left(ws.Cells(i, 3), 9)) <> "total for" Then
+            ws.Range(ws.Cells(i, 4), ws.Cells(i, ws.UsedRange.Columns.Count)).ClearContents
+        End If
+        
+         'Format negative values to RED
         If ws.Cells(i, 5) < 0 Then
             ws.Cells(i, 5).Font.Color = vbRed
         End If
         If ws.Cells(i, 7) < 0 Then
             ws.Cells(i, 7).Font.Color = vbRed
+        End If
+        
+        'Double bottom cell border formatting
+        If Left(ws.Cells(i, 3), Len("Total for")) = "Total for" Then
+            ws.Cells(i, 7).Font.Bold = True
+            ws.Cells(i, 7).Borders(xlEdgeBottom).LineStyle = xlDouble
+            ws.Cells(i, 7).Borders(xlEdgeBottom).Weight = xlThick
+            'Cell above required to have bottom double borders as well
+            ws.Cells(i - 1, 7).Borders(xlEdgeBottom).LineStyle = xlDouble
+            ws.Cells(i - 1, 7).Borders(xlEdgeBottom).Weight = xlThick
         End If
     Next i
 End Sub

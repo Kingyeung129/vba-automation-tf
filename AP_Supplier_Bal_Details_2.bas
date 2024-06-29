@@ -136,7 +136,6 @@ Sub addTotalRow(wb As Workbook, ws As Worksheet)
         
         i = i + 1
     Loop
-    
 End Sub
 
 Sub sortCurrency(wb As Workbook, ws As Worksheet)
@@ -204,7 +203,6 @@ Sub sortCurrency(wb As Workbook, ws As Worksheet)
             ws.Cells(i, COL_FOB).Borders(xlEdgeBottom).Weight = xlThick
         End If
     Next i
-
 End Sub
 
 Sub calGrandTotal(wb As Workbook, ws As Worksheet)
@@ -239,8 +237,8 @@ Sub calGrandTotal(wb As Workbook, ws As Worksheet)
     ws.Range(ws.Cells(outputStartRW, COL_START), ws.Cells(outputStartRW + 1 + UBound(grandTotalArr), COL_START)).Font.Bold = True
     ws.Range(ws.Cells(outputStartRW, 2), ws.Cells(outputStartRW + 1 + UBound(grandTotalArr), 2)).NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
     ws.Columns(2).EntireColumn.AutoFit
-    
 End Sub
+
 Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
     Dim wsApAgeing As Worksheet
     Dim i As Long, j As Long
@@ -267,6 +265,9 @@ Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
         End If
     Next i
     
+    'Multi sorting - sorting by currency then by supplier name
+    Call multiSort(wsApAgeing)
+    
     'Output Grand Total for AP AGEING Sheet
     With wsApAgeing
         .Range("E1") = "Grand Total"
@@ -278,11 +279,9 @@ Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
     wsApAgeing.Columns("C:C").EntireColumn.NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
     wsApAgeing.Columns("F:F").EntireColumn.NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
     wsApAgeing.Rows(1).Font.Bold = True
-    
 End Sub
 
 Sub formatDataSheet(wb As Workbook, ws As Worksheet)
-    
     Dim i As Long
     
     'Delete index and Doc No (1st and 2nd columns) and "Type"
@@ -291,6 +290,14 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
     
     'Bold Company name
     ws.Columns(3).Font.Bold = True
+    
+    'Delete every company's first row as it is repeated and not required
+    For i = ROW_START To ws.UsedRange.Rows.Count
+        If ws.Cells(i, 3) <> vbNullString And LCase(Left(ws.Cells(i, 3), 9)) <> "total for" Then
+            ws.Cells(i, 3).EntireRow.Delete
+            i = i - 1  'Minus 1 as a row has been deleted, row pointer should not increment
+        End If
+    Next i
     
     'Change data type of "Original Amount" & "Balance Due" to currency
     ws.Columns(5).Style = "Currency"
@@ -305,7 +312,37 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
             ws.Cells(i, 7).Font.Color = vbRed
         End If
     Next i
+End Sub
+
+Sub multiSort(ws As Worksheet)
+    Dim last_row As Long
+    Dim custom_currency_order As String
     
+    last_row = ws.UsedRange.Rows.Count
+    custom_currency_order = Join(sortOrderCurrency, ",")
+    
+    'Add custom list
+    Application.AddCustomList ListArray:=sortOrderCurrency
+    ws.Sort.SortFields.Clear
+    ' Sort by Currency first then by Supplier Name
+    ws.Sort.SortFields.Add2 Key:=Range( _
+        "B" & ROW_START & ":B" & last_row), SortOn:=xlSortOnValues, order:=xlAscending, CustomOrder:= _
+        CVar(custom_currency_order), DataOption:=xlSortNormal
+    ws.Sort.SortFields.Add2 Key:=Range( _
+        "A" & ROW_START & ":A" & last_row), SortOn:=xlSortOnValues, order:=xlAscending, DataOption:= _
+        xlSortNormal
+    'Apply sorting
+    With ws.Sort
+        .SetRange ws.Range("A1:C" & last_row)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    'Delete custom list
+    Application.DeleteCustomList Application.CustomListCount
 End Sub
 
 Sub clearFormatingWS(ws As Worksheet)
@@ -313,6 +350,7 @@ Sub clearFormatingWS(ws As Worksheet)
         .Range(.Cells(6, COL_START), .Cells(.UsedRange.Rows.Count - 1, COL_END)).ClearFormats
     End With
 End Sub
+
 Function Merge2DArray(arr As Variant, arr2 As Variant) As Variant
     Dim i, j, k As Long
     Dim oUBound_arr As Long, oLBound_arr As Long
@@ -334,6 +372,7 @@ Function Merge2DArray(arr As Variant, arr2 As Variant) As Variant
     Next i
     Merge2DArray = arr
 End Function
+
 Function IsInArray(stringToBeFound As String, arr As Variant) As Boolean
     Dim i As Long
     For i = LBound(arr) To UBound(arr)
@@ -343,8 +382,8 @@ Function IsInArray(stringToBeFound As String, arr As Variant) As Boolean
         End If
     Next i
     IsInArray = False
-
 End Function
+
 Function RemoveElementFrom2DArray(index As Long, arr As Variant) As Variant
     Dim i As Long
     Dim newArr As Variant
@@ -358,4 +397,3 @@ Function RemoveElementFrom2DArray(index As Long, arr As Variant) As Variant
     Next i
     RemoveElementFrom2DArray = newArr
 End Function
-

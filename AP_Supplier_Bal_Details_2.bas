@@ -1,7 +1,7 @@
 Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 'Written by King
 'Created on 30/06/2024
-'Updated on 30/06/2024 12.26 am
+'Updated on 03/07/2024 11.26 pm
 '
 'FUNCTIONS:
 '1) Add total row for each company
@@ -28,6 +28,8 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 '       -> Issue is resolved by referencing the timestamp row (which is usually the final row of the worksheet) and subtracting 3 from it to obtain the last company/supplier's last row.
 ' - Multilevel custom sorting for AP Ageing sheet and advance cell block level sorting for datasheet
 ' - Minor formatting changes (double bottom borders, red color for negative values, cleared contents for company's first row)
+' - Added Top thin and Bottom double thick border for datasheet total for each company
+' - Added extra row to seperate companies
 
 Option Explicit
 
@@ -304,7 +306,7 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
             Next k
             output_row = output_row + 1
         Next j
-        output_row_start = output_row_start + company_ubound - company_lbound
+        output_row_start = output_row_start + company_ubound - company_lbound + 1
     Next i
     
     'Bold Company name
@@ -333,9 +335,8 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
             ws.Cells(i, 7).Font.Bold = True
             ws.Cells(i, 7).Borders(xlEdgeBottom).LineStyle = xlDouble
             ws.Cells(i, 7).Borders(xlEdgeBottom).Weight = xlThick
-            'Cell above required to have bottom double borders as well
-            ws.Cells(i - 1, 7).Borders(xlEdgeBottom).LineStyle = xlDouble
-            ws.Cells(i - 1, 7).Borders(xlEdgeBottom).Weight = xlThick
+            ws.Cells(i, 7).Borders(xlEdgeTop).LineStyle = xlContinuous
+            ws.Cells(i, 7).Borders(xlEdgeTop).Weight = xlThin
         End If
     Next i
 End Sub

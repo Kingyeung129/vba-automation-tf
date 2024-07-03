@@ -1,7 +1,8 @@
 Attribute VB_Name = "Get_AR_Summary_2"
 'Written by King
 'NOTE:
-'11/05/2024 -
+'Creation Date: 11/05/2024
+'Updated Date: 03/07/2024 11:42pm
 
 'Readme (Program Flow):
 ' 1) Check if 2nd sheetname is AR Ageing Summary
@@ -9,7 +10,9 @@ Attribute VB_Name = "Get_AR_Summary_2"
 ' 3) Get company start and end row with a loop first (Last row will be the last row that has "TOTAL" minus 1)
 ' 4) Get month no reference and tally with AR sheet month no, sum the value together. Loop through company start to end row to get total sum
 ' 5) output total sum for month in AR sheet then move on to next month column
-
+'
+'Updates:
+' - Bug fixes for Total being sorted in summary. Resolved by sorting by company names first before tabulating total
 
 Option Explicit
 Private Enum sh_columns
@@ -116,28 +119,8 @@ Sub Get_AR_Summary_2_MAIN()
         End If
     Next i
     
-    'Formulate Total for each column
-    ar_sh_lastrow = ar_sh_rowPt
-    ar_sh.Cells(ar_sh_lastrow, 1) = "TOTAL"
-    For i = 2 To ar_sh_company_totalcolumn
-        ar_sh.Cells(ar_sh_lastrow, i).Formula = "=sum(" & ar_sh.Cells(ar_sh_startrow, i).Address & ":" & ar_sh.Cells(ar_sh_lastrow - 1, i).Address & ")"
-    Next i
-    
-    'Clear Formating AR Sheet for output
-    ar_sh.Range(ar_sh.Cells(i, 1).Address & ":" & ar_sh.Cells(i, ar_sh_company_totalcolumn).Address).ClearFormats
-
-    'Format Output (AR Summary)
-    With ar_sh
-        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, 1).Address).Font.Bold = True
-        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Font.Name = "Arial"
-        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Font.Size = 8
-        .Range(.Cells(ar_sh_lastrow, 1).Address & ":" & Cells(ar_sh_lastrow, 1).Address).Font.Bold = True
-        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).NumberFormat = "@"
-        .Range(.Cells(ar_sh_startrow, 2).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Style = "Currency"
-'        .Range(.Cells(ar_sh_startrow, 2).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Columns.AutoFit
-    End With
-    
-    'Copy and paste valeus to avoid circular reference for formulas in "Total" column, then sort by Company Name Order
+    'Copy and paste values to avoid circular reference for formulas in "Total" column, then sort by Company Name Order
+    ar_sh_lastrow = ar_sh_rowPt - 1
     With ar_sh
         .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, .UsedRange.Columns.Count).Address).Copy
         .Cells(ar_sh_startrow, 1).PasteSpecial Paste:=xlPasteValues
@@ -157,6 +140,27 @@ Sub Get_AR_Summary_2_MAIN()
         .Orientation = xlTopToBottom
         .SortMethod = xlPinYin
         .Apply
+    End With
+    
+    'Formulate Total for each column
+    ar_sh_lastrow = ar_sh_rowPt
+    ar_sh.Cells(ar_sh_lastrow, 1) = "TOTAL"
+    For i = 2 To ar_sh_company_totalcolumn
+        ar_sh.Cells(ar_sh_lastrow, i).Formula = "=sum(" & ar_sh.Cells(ar_sh_startrow, i).Address & ":" & ar_sh.Cells(ar_sh_lastrow - 1, i).Address & ")"
+    Next i
+    
+    'Clear Formating AR Sheet for output
+    ar_sh.Range(ar_sh.Cells(i, 1).Address & ":" & ar_sh.Cells(i, ar_sh_company_totalcolumn).Address).ClearFormats
+
+    'Format Output (AR Summary)
+    With ar_sh
+        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, 1).Address).Font.Bold = True
+        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Font.Name = "Arial"
+        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Font.Size = 8
+        .Range(.Cells(ar_sh_lastrow, 1).Address & ":" & Cells(ar_sh_lastrow, 1).Address).Font.Bold = True
+        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).NumberFormat = "@"
+        .Range(.Cells(ar_sh_startrow, 2).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Style = "Currency"
+'        .Range(.Cells(ar_sh_startrow, 2).Address & ":" & Cells(ar_sh_lastrow, ar_sh_company_totalcolumn).Address).Columns.AutoFit
     End With
     
     'Format AR sheet negative values with red font

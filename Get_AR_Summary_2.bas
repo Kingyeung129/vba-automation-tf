@@ -2,7 +2,7 @@ Attribute VB_Name = "Get_AR_Summary_2"
 'Written by King
 'NOTE:
 'Creation Date: 11/05/2024
-'Updated Date: 03/07/2024 11:42pm
+'Updated Date: 06/07/2024 12:18pm
 
 'Readme (Program Flow):
 ' 1) Check if 2nd sheetname is AR Ageing Summary
@@ -13,12 +13,14 @@ Attribute VB_Name = "Get_AR_Summary_2"
 '
 'Updates:
 ' - Bug fixes for Total being sorted in summary. Resolved by sorting by company names first before tabulating total
+' - Changed column reference for amount from 8 (Original Amount) to 10 (Balance Due)
+' - Fix sorting by customer name in AR ageing sheet. Converted usedrange to values to prevent unexpected behaviors caused by formula and cell references. Extending sorting for usedrange columns and avoided using autofilter.
 
 Option Explicit
 Private Enum sh_columns
     enum_sh_col_customer_name = 3
     enum_sh_col_date_of_transaction = 4
-    enum_sh_col_amount = 8
+    enum_sh_col_amount = 10
 End Enum
 
 Sub Get_AR_Summary_2_MAIN()
@@ -122,19 +124,15 @@ Sub Get_AR_Summary_2_MAIN()
     'Copy and paste values to avoid circular reference for formulas in "Total" column, then sort by Company Name Order
     ar_sh_lastrow = ar_sh_rowPt - 1
     With ar_sh
-        .Range(.Cells(ar_sh_startrow, 1).Address & ":" & Cells(ar_sh_lastrow, .UsedRange.Columns.Count).Address).Copy
-        .Cells(ar_sh_startrow, 1).PasteSpecial Paste:=xlPasteValues
-        Application.CutCopyMode = False
-        ar_sh.AutoFilterMode = False
-        ar_sh.Range("A5").AutoFilter
-        On Error Resume Next
-        ar_sh.AutoFilter.Sort.SortFields.Clear
+        .UsedRange.Value = .UsedRange.Value
+        ar_sh.Sort.SortFields.Clear
         On Error GoTo 0
-        ar_sh.AutoFilter.Sort.SortFields.Add2 _
+        ar_sh.Sort.SortFields.Add2 _
                 Key:=Range(ar_sh.Cells(ar_sh_startrow - 1, 1).Address & ":" & ar_sh.Cells(ar_sh_lastrow, 1).Address), SortOn:=xlSortOnValues, order:=xlAscending, _
                 DataOption:=xlSortNormal
     End With
-    With ar_sh.AutoFilter.Sort
+    With ar_sh.Sort
+        .SetRange ar_sh.Range(ar_sh.Cells(ar_sh_startrow - 1, 1).Address & ":" & ar_sh.Cells(ar_sh_lastrow, ar_sh.UsedRange.Columns.Count).Address)
         .Header = xlYes
         .MatchCase = False
         .Orientation = xlTopToBottom

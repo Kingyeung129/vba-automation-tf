@@ -1,7 +1,7 @@
 Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 'Written by King
 'Created on 30/06/2024
-'Updated on 03/07/2024 11.26 pm
+'Updated Date: 06/07/2024 12:18pm
 '
 'FUNCTIONS:
 '1) Add total row for each company
@@ -30,6 +30,7 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 ' - Minor formatting changes (double bottom borders, red color for negative values, cleared contents for company's first row)
 ' - Added Top thin and Bottom double thick border for datasheet total for each company
 ' - Added extra row to seperate companies
+' - Bug fixes for multi sorting. Resolved by converting values in AP ageing sheet to values prior to multisorting to prevent unexpected behaviors caused by formulas and cell references
 
 Option Explicit
 
@@ -262,6 +263,11 @@ Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
         End If
     Next i
     
+    'Convert range to values to prevent unexpected behavior from multisorting
+    With wsApageing.UsedRange
+        .Value = .Value
+    End With
+    
     'Multi sorting - sorting by currency then by supplier name
     Call multiSort(wsApageing)
     
@@ -367,8 +373,8 @@ Sub multiSort(ws As Worksheet)
         .SortMethod = xlPinYin
         .Apply
     End With
-    
-    'Delete custom list
+
+'    Delete custom list
     Application.DeleteCustomList Application.CustomListCount
 End Sub
 

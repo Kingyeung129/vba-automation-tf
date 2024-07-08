@@ -1,7 +1,7 @@
 Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 'Written by King
 'Created on 30/06/2024
-'Updated Date: 06/07/2024 12:18pm
+'Updated Date: 08/07/2024 10:57am
 '
 'FUNCTIONS:
 '1) Add total row for each company
@@ -31,6 +31,7 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 ' - Added Top thin and Bottom double thick border for datasheet total for each company
 ' - Added extra row to seperate companies
 ' - Bug fixes for multi sorting. Resolved by converting values in AP ageing sheet to values prior to multisorting to prevent unexpected behaviors caused by formulas and cell references
+' - Added support for older excel version <=2016 with no sort.add2() method. Error handler for error code 438 and use sort.add() method instead
 
 Option Explicit
 
@@ -358,12 +359,16 @@ Sub multiSort(ws As Worksheet)
     Application.AddCustomList ListArray:=sortOrderCurrency
     ws.Sort.SortFields.Clear
     ' Sort by Currency first then by Supplier Name
+    On Error GoTo hdl_add2_err
     ws.Sort.SortFields.Add2 Key:=Range( _
         "B" & ROW_START & ":B" & last_row), SortOn:=xlSortOnValues, order:=xlAscending, CustomOrder:= _
         CVar(custom_currency_order), DataOption:=xlSortNormal
     ws.Sort.SortFields.Add2 Key:=Range( _
         "A" & ROW_START & ":A" & last_row), SortOn:=xlSortOnValues, order:=xlAscending, DataOption:= _
         xlSortNormal
+    On Error GoTo 0
+
+apply_sorting:
     'Apply sorting
     With ws.Sort
         .SetRange ws.Range("A1:C" & last_row)
@@ -376,6 +381,21 @@ Sub multiSort(ws As Worksheet)
 
 '    Delete custom list
     Application.DeleteCustomList Application.CustomListCount
+    Exit Sub
+
+'Error handler for no sort.add2() method
+hdl_add2_err:
+    If Err.Number = 438 Then
+        ws.Sort.SortFields.Add Key:=Range( _
+            "B" & ROW_START & ":B" & last_row), SortOn:=xlSortOnValues, order:=xlAscending, CustomOrder:= _
+            CVar(custom_currency_order), DataOption:=xlSortNormal
+        ws.Sort.SortFields.Add Key:=Range( _
+            "A" & ROW_START & ":A" & last_row), SortOn:=xlSortOnValues, order:=xlAscending, DataOption:= _
+            xlSortNormal
+        GoTo apply_sorting
+    Else:
+        MsgBox ("Unable to perform sorting, please sort manually!")
+    End If
 End Sub
 
 Sub clearFormatingWS(ws As Worksheet)
@@ -430,3 +450,5 @@ Function RemoveElementFrom2DArray(index As Long, arr As Variant) As Variant
     Next i
     RemoveElementFrom2DArray = newArr
 End Function
+
+

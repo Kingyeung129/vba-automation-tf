@@ -1,7 +1,7 @@
 Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 'Written by King
 'Created on 30/06/2024
-'Updated Date: 08/07/2024 10:57am
+'Updated on: 12/11/2024 12:49am
 '
 'FUNCTIONS:
 '1) Add total row for each company
@@ -12,7 +12,7 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 '       ~ JPY
 '       ~ MYR
 '       ~ CNH
-'       ~ TW
+'       ~ TWD
 '       ~ THB
 '       ~ SGD
 ' -> Sort must be alphabetical order (note that when exported, it is already in alphabetical order)
@@ -32,6 +32,8 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 ' - Added extra row to seperate companies
 ' - Bug fixes for multi sorting. Resolved by converting values in AP ageing sheet to values prior to multisorting to prevent unexpected behaviors caused by formulas and cell references
 ' - Added support for older excel version <=2016 with no sort.add2() method. Error handler for error code 438 and use sort.add() method instead
+' - (12/11/2024) Adjusted Taiwan dollar abbreviation from TW to TWD
+' - (12/11/2024) Added transform_ws module to transform worksheet data to the previous template format before running the rest of the procedures
 
 Option Explicit
 
@@ -76,10 +78,11 @@ Sub Get_AP_Supplier_Bal_Details_2_MAIN()
     sortOrderCurrency(3) = "JPY"
     sortOrderCurrency(4) = "MYR"
     sortOrderCurrency(5) = "CNH"
-    sortOrderCurrency(6) = "TW"
+    sortOrderCurrency(6) = "TWD"
     sortOrderCurrency(7) = "THB"
     sortOrderCurrency(8) = "SGD"
     
+    Call transform_ws(ws)
     Call addTotalRow(wb, ws)
     Call sortCurrency(wb, ws)
     Call calGrandTotal(wb, ws)
@@ -88,6 +91,68 @@ Sub Get_AP_Supplier_Bal_Details_2_MAIN()
     
     MsgBox "Completed!"
 End Sub
+
+Private Sub transform_ws(ws As Worksheet)
+    Dim i, j, k As Long
+    Dim original_amount_currency, bal_due_currency As String
+    Dim original_amount_raw, bal_due_raw As String
+    Dim original_amount, bal_due As String
+    Dim arr() As String
+    
+    If Not ws.UsedRange.Columns.Count < COL_END Then
+        Exit Sub
+    End If
+    Debug.Print ("Worksheet requires transformation. Attempting transformation of data...")
+    
+    'Insert index column
+    ws.Range("A:A").EntireColumn.Insert Shift:=xlToRight
+    ws.Cells(1, 1) = "#"
+    'Loop through both original amount and balance due column and split currency. Negative values should be reflected with "-" sign
+    For i = 2 To ws.UsedRange.Rows.Count
+        'bal due is column 8 before transformation after index col insertion, need to expand to column 9 and 10
+        'original amount is column 7 before transformation after index col insertion, need to expand to column 7 and 8
+        bal_due_raw = ws.Cells(i, 8)
+        original_amount_raw = ws.Cells(i, 7)
+        bal_due_currency = Left(bal_due_raw, 3)
+        original_amount_currency = Left(original_amount_raw, 3)
+        arr = Split(bal_due_raw, " ")
+        On Error Resume Next
+        bal_due = ConvertBracketedStringToNegative(arr(UBound(arr)))
+        On Error GoTo 0
+        arr = Split(original_amount_raw, " ")
+        On Error Resume Next
+        original_amount = ConvertBracketedStringToNegative(arr(UBound(arr)))
+        On Error GoTo 0
+        'Write to worksheet
+        ws.Cells(i, 9) = bal_due_currency
+        ws.Cells(i, 10) = bal_due
+        ws.Cells(i, 7) = original_amount_currency
+        ws.Cells(i, 8) = original_amount
+        bal_due_currency = vbNullString
+        bal_due = vbNullString
+        original_amount_currency = vbNullString
+        original_amount = vbNullString
+    Next i
+    'Rename column headers
+    ws.Cells(1, 7) = "Original Amount (currency)"
+    ws.Cells(1, 8) = "Original Amount"
+    ws.Cells(1, 9) = "Balance Due (currency)"
+    ws.Cells(1, 10) = "Balance Due"
+End Sub
+
+Function ConvertBracketedStringToNegative(inputStr As String) As String
+    Dim result As String
+    
+    ' Check if the string starts with "(" and ends with ")"
+    If Left(inputStr, 1) = "(" And Right(inputStr, 1) = ")" Then
+        result = -(Mid(inputStr, 2, Len(inputStr) - 2))
+    Else
+        ' Convert to double directly if no brackets
+        result = inputStr
+    End If
+    
+    ConvertBracketedStringToNegative = result
+End Function
 
 Sub addTotalRow(wb As Workbook, ws As Worksheet)
     Dim i, j, k, currencyCounter As Long

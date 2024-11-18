@@ -34,6 +34,8 @@ Attribute VB_Name = "AP_Supplier_Bal_Details_2"
 ' - Added support for older excel version <=2016 with no sort.add2() method. Error handler for error code 438 and use sort.add() method instead
 ' - (12/11/2024) Adjusted Taiwan dollar abbreviation from TW to TWD
 ' - (12/11/2024) Added transform_ws module to transform worksheet data to the previous template format before running the rest of the procedures
+' - (18/11/2024) Added company name for company data block
+' - (18/11/2024) Fix for grand total last index not showing
 
 Option Explicit
 
@@ -59,7 +61,7 @@ End Enum
 '2 dimensional Array for storing companyName, companyStartRow, companyEndRow, currency, order, companyRowsNo (companyStartRow - companyEndRow + 2 [add 2 to account for total row and empty row])
 Private supplierDetailsArr() As Variant
 Private currencyNamesArr() As Variant
-Private sortOrderCurrency(0 To 8) As Variant
+Private sortOrderCurrency(0 To 9) As Variant
 Private sortedCurrencyNames() As Variant
 Private supplierDetailsArr_new() As Variant
 Private grandTotalArr() As Variant
@@ -74,13 +76,14 @@ Sub Get_AP_Supplier_Bal_Details_2_MAIN()
     
     sortOrderCurrency(0) = "USD"
     sortOrderCurrency(1) = "AUD"
-    sortOrderCurrency(2) = "EUR"
-    sortOrderCurrency(3) = "JPY"
-    sortOrderCurrency(4) = "MYR"
-    sortOrderCurrency(5) = "CNH"
-    sortOrderCurrency(6) = "TWD"
-    sortOrderCurrency(7) = "THB"
-    sortOrderCurrency(8) = "SGD"
+    sortOrderCurrency(2) = "NZD"
+    sortOrderCurrency(3) = "EUR"
+    sortOrderCurrency(4) = "JPY"
+    sortOrderCurrency(5) = "MYR"
+    sortOrderCurrency(6) = "CNY"
+    sortOrderCurrency(7) = "TWD"
+    sortOrderCurrency(8) = "THB"
+    sortOrderCurrency(9) = "SGD"
     
     Call transform_ws(ws)
     Call addTotalRow(wb, ws)
@@ -340,7 +343,7 @@ Sub createApAgeingSheet(wb As Workbook, ws As Worksheet)
     'Output Grand Total for AP AGEING Sheet
     With wsApageing
         .Range("E1") = "Grand Total"
-        .Range(.Cells(2, 5), .Cells(UBound(grandTotalArr) + 1, 6)) = grandTotalArr
+        .Range(.Cells(2, 5), .Cells(UBound(grandTotalArr) + 2, 6)) = grandTotalArr
     End With
     
     'Formating
@@ -357,6 +360,7 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
     Dim data As Variant
     Dim output_row_start As Long, output_row As Long
     Dim company_lbound As Long, company_ubound As Long
+    Dim company_name As String
     
     'Delete index and Doc No (1st and 2nd columns) and "Type"
     ws.Columns("D:D").Delete
@@ -392,6 +396,7 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
         'Clear total amount for company's first row as it is repeated and not required
         If ws.Cells(i, 3) <> vbNullString And LCase(Left(ws.Cells(i, 3), 9)) <> "total for" Then
             ws.Range(ws.Cells(i, 4), ws.Cells(i, ws.UsedRange.Columns.Count)).ClearContents
+            company_name = ws.Cells(i, 3)
         End If
         
          'Format negative values to RED
@@ -404,11 +409,27 @@ Sub formatDataSheet(wb As Workbook, ws As Worksheet)
         
         'Double bottom cell border formatting
         If Left(ws.Cells(i, 3), Len("Total for")) = "Total for" Then
+            ws.Cells(i, 3).Font.Color = vbRed
+            ws.Cells(i, 7).Font.Color = vbRed
             ws.Cells(i, 7).Font.Bold = True
             ws.Cells(i, 7).Borders(xlEdgeBottom).LineStyle = xlDouble
             ws.Cells(i, 7).Borders(xlEdgeBottom).Weight = xlThick
             ws.Cells(i, 7).Borders(xlEdgeTop).LineStyle = xlContinuous
             ws.Cells(i, 7).Borders(xlEdgeTop).Weight = xlThin
+            
+            'Highlight company total
+            With ws.Range(ws.Cells(i, 3), ws.Cells(i, 7)).Interior
+                .Pattern = xlSolid
+                .PatternColorIndex = xlAutomatic
+                .Color = 65535
+                .TintAndShade = 0
+                .PatternTintAndShade = 0
+            End With
+        End If
+        
+        'Add company name for each row of company block. Check if the cell on top starts with "Total for", if yes, skip.
+        If ws.Cells(i, 3) = vbNullString And Left(ws.Cells(i - 1, 3), Len("Total for")) <> "Total for" Then
+            ws.Cells(i, 3) = company_name
         End If
     Next i
 End Sub
